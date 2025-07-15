@@ -2,6 +2,9 @@
 {
     public static unsafe class MemoryHandler
     {
+        // Stores all variables created during script execution. Provides
+        // optional watcher logic that can revert changes when an operation
+        // fails or is rolled back.
 
         public static Dictionary<string, dynamic> Memorys = [];
         private static readonly object obj = new();

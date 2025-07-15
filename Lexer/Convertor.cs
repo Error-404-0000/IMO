@@ -4,6 +4,9 @@ namespace Lexer
 {
     public class Convertor
     {
+        // Utility class responsible for converting script values into
+        // their corresponding .NET types. Also provides helpers for
+        // working with arrays and pointer sized integers.
         public static dynamic ConvertToArrayType(string value, object[] arrays)
         {
             switch (value.Replace("::", null))

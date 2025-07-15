@@ -4,6 +4,9 @@ namespace Lexer
 {
     public static class ConditionsHandler
     {
+        // Implements conditional execution for `if` and `while` blocks.
+        // Conditions are parsed and evaluated using `ValueHandler` and
+        // `MemoryHandler` to retrieve current values.
         public static bool Run(string code, int currentcount = 0)
         {
             code = code.Replace("*34M#", "\n");

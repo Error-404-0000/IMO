@@ -4,6 +4,8 @@ namespace Lexer
 {
     public static class ArraysHandler
     {
+        // Handles array declaration and element access within scripts.
+        // Arrays are stored inside the global `MemoryHandler` dictionary.
         public static void HandleArrayOperation(string code)
         {
             Regex arrayDeclarationPattern = new(@"\s*(\w+)\s*\[\s*\]\s*(\w+)\s*->\s*\[(.*)\]\s*");

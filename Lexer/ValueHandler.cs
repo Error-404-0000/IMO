@@ -4,6 +4,9 @@ namespace Lexer
 {
     public static class ValueHandler
     {
+        // Parses assignment and retrieval instructions. Supports simple
+        // arithmetic via the `Add` and `Sub` keywords and manages values
+        // stored in `MemoryHandler`.
         public static dynamic Run(string code)
         {
             Regex regex = new($@"(Add|Sub)\s+({StringHelper.AllTypes})<-\s*(\w+\d*)\s+(\w+\d*|\w*\d*|\""(.*)"")");

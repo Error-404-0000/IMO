@@ -5,6 +5,9 @@ namespace Lexer
 {
     public sealed unsafe class StringHelper
     {
+        // Provides low level helpers for allocating and freeing unmanaged
+        // strings. Used when passing string data to native code or treating
+        // a string as a pointer.
         [DllImport("Ole32.dll")]
         public static extern IntPtr CoTaskMemAlloc(int size);
 

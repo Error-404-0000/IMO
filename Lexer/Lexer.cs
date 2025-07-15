@@ -2,6 +2,9 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
+// Entry point for the script interpreter. Handles preprocessing,
+// include loading and instruction dispatching.
+
 namespace Lexer
 {
     public static class Lexer

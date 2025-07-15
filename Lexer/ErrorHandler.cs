@@ -2,6 +2,8 @@
 {
     public class ErrorHandler
     {
+        // Simple helper used by various components to print an error message
+        // along with the current line number and terminate the application.
         public static void Send(string message, string reason)
         {
 

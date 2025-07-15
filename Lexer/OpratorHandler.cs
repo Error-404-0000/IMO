@@ -4,6 +4,8 @@ namespace Lexer
 {
     public static class OperatorHandler
     {
+        // Placeholder for future operator implementations. This class is not
+        // currently used but reserved for arithmetic or logical operations.
         public static object Run(string code)
         {
             string[] parts = Regex.Split(code, $@"\s*({StringHelper.AllOperations})\s*");

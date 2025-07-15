@@ -3,6 +3,10 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
+// Handles creation, invocation and overriding of methods defined in the
+// scripting language. Supports calling both local script functions and
+// external .NET methods.
+
 namespace Lexer
 {
     public partial class MethodHandler
