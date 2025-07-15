@@ -1,11 +1,13 @@
-# IMO
+# SimpleScript
 
-IMO is an experimental interpreter that implements a small scripting language we call **SimpleScript**. The project began as a learning exercise but has grown into a functional playground for running `.sc` files. It features a minimal syntax influenced by other dynamic languages and provides a handful of built‑in utilities for experimenting with language design.
+SimpleScript is a lightweight scripting language and interpreter written in C#. It started as a learning project but has grown into a functional playground for experimenting with language design. The interpreter executes `.sc` files and offers a compact syntax inspired by dynamic languages.
 
 ## Key Features
 
 - **Variables and Types** – supports `int`, `string`, `double`, `bool` and several pointer types.
+- **Arithmetic Operations** – simple `Add` and `Sub` instructions modify numeric or string values.
 - **Arrays** – typed arrays with automatic allocation and indexing helpers.
+- **Pointer Support** – `nint` and `IntPtr` types let scripts manipulate memory directly.
 - **Control Flow** – `if`, `elif`, `else` and `while` blocks are parsed by the interpreter.
 - **Methods** – the `.method` keyword allows declaring, calling and overwriting script functions.
 - **Include System** – scripts can include other files or import single methods.
@@ -48,8 +50,8 @@ testlib/   – C# helper library
 
 ## Command Line Interface
 
-The `EJE/` folder contains a small executable named `Lex` that drives the interpreter. 
-It accepts the path to an `.sc` file and forwards the script contents directly to `IMO.Lexer.Run`.
+The `EJE/` folder contains a small executable named `Lex` that drives the interpreter.
+It accepts the path to an `.sc` file and forwards the script contents directly to `Lexer.Lexer.Run`.
 The program performs only minimal argument validation before invoking the interpreter.
 
 ## Project Structure

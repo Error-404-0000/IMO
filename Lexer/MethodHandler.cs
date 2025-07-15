@@ -341,6 +341,10 @@ namespace Lexer
                 ErrorHandler.Send(code, "invaild Function syntax.");
             }
         }
+        // Parse and invoke a method call. The input string includes the target
+        // type and method name followed by parameter bindings. Reflection is
+        // used to locate the matching method and convert arguments from their
+        // textual representations.
         private static void CallMethod(string code)
         {
             Regex regex = new(@"^(call)\s+\[([^\]]+)\](([\w\.]+))\.(\w+)");

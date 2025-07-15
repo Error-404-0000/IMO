@@ -39,6 +39,9 @@
         }
         // Remove variables that were captured by the watcher since the last
         // call to `WatchForChanges`. Throws if the watcher is still running.
+        // Undo any variable declarations that occurred while the watcher was
+        // active. This is primarily used when evaluating conditional blocks so
+        // that temporary variables do not leak into the outer scope.
         public static void RemoveLastChangesFromMemory()
         {
             if (!StopWatcher)
@@ -47,7 +50,6 @@
             }
             else
             {
-
                 foreach (string key in keys)
                 {
                     if (Memorys.ContainsKey(key))
@@ -55,8 +57,6 @@
                         _ = Memorys.Remove(key);
                     }
                 }
-
-
             }
         }
 
