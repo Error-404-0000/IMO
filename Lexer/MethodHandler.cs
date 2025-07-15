@@ -3,10 +3,18 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
+// MethodHandler deals with `.method` syntax within SimpleScript. It supports
+// creating new methods, invoking existing ones and overwriting definitions. The
+// `Run` method parses the directive and delegates to the appropriate helper
+// routine.
+
 namespace Lexer
 {
     public partial class MethodHandler
     {
+        // Entry point for processing `.method` directives. The supplied code is
+        // inspected to determine whether a method should be created, called or
+        // overwritten and then routed to the appropriate helper.
         public static void Run(string code)
         {
 
@@ -228,6 +236,7 @@ namespace Lexer
                 }
             }
         }
+        // Replace the body of an existing local method with new code.
         private static void OverWriteMethod(string code)
         {
             Regex regex = new(@"\s*overwrite\s*create\s+(.+)\(\)\s*\{\s*([\s\S]*?)\s*\}");
@@ -247,6 +256,7 @@ namespace Lexer
                 }
             }
         }
+        // Parse a `.method create` declaration and store it for later use.
         private static void CreateMethod(string code)
         {
 
@@ -331,6 +341,10 @@ namespace Lexer
                 ErrorHandler.Send(code, "invaild Function syntax.");
             }
         }
+        // Parse and invoke a method call. The input string includes the target
+        // type and method name followed by parameter bindings. Reflection is
+        // used to locate the matching method and convert arguments from their
+        // textual representations.
         private static void CallMethod(string code)
         {
             Regex regex = new(@"^(call)\s+\[([^\]]+)\](([\w\.]+))\.(\w+)");

@@ -1,5 +1,9 @@
 ﻿using System.Text.RegularExpressions;
 
+// Handles if/else and while control flow for SimpleScript. The Run method
+// parses a condition block and executes its contents when expressions evaluate
+// to true.
+
 namespace Lexer
 {
     public static class ConditionsHandler
@@ -22,6 +26,9 @@ namespace Lexer
             }
             return true;
         }
+        // Executes a `while` loop. The method evaluates the conditional
+        // expression on each iteration and repeatedly calls into the lexer
+        // to run the loop body.
         private static bool WhileHandler(string code)
         {
             Regex Regex = new(@"while\s*\((.*)\s*(!=|==|<=|>=|<|>)\s*(.*)\)\s*(:\s*\d*)?\s*{\s*([\n\s\w\d\S\s]*)\s*}");
@@ -218,6 +225,9 @@ namespace Lexer
             return true;
 
         }
+        // Handles `if` / `elif` / `else` blocks. It walks over the matches
+        // produced by a large regular expression and dispatches execution of
+        // the first condition that evaluates to true.
         private static bool Ifhandler(string code, int currentcount = 0)
         {
             bool Success = false;

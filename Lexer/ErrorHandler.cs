@@ -1,4 +1,5 @@
-﻿namespace Lexer
+﻿// Simple helper used to format and display interpreter errors.
+namespace Lexer
 {
     public class ErrorHandler
     {

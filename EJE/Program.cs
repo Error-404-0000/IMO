@@ -4,10 +4,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using testlib;
+// Entry point for the command line interface. It expects a `.sc` script path
+// as the first argument and passes the file contents to `Lexer.Run`.
+// The executable performs no additional processing – it merely loads the file
+// and hands control to the interpreter.
 namespace test43
 {
     internal class Program
     {
+        // Main simply validates arguments then forwards the script contents to
+        // the lexer. It returns 0 on success or a non-zero value on failure.
         static int Main(string[] args)
         {
          
