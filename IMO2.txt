@@ -1,0 +1,2670 @@
+// ===== FILE: Program.cs =====
+using Lexer;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using testlib;
+namespace test43
+{
+    internal class Program
+    {
+        static int Main(string[] args)
+        {
+         
+            if (args.Length < 1)
+            {
+                Console.WriteLine("Usage: Lexer.exe <file path>");
+                return 1;
+            }
+            var filePath = args[0];
+            if (filePath == null)
+            {
+                Console.WriteLine("File path is null");
+            }
+            else
+            {
+                for (int i = 0; i < args.Length; i++)
+                {
+
+                }
+                if (File.Exists(filePath))
+                {
+                    string file = File.ReadAllText(filePath);
+                    Lexer.Lexer.Run(file,Path: Path.GetDirectoryName(filePath));
+                }
+                else
+                {
+                    // File not found
+                    Console.WriteLine("File not found");
+                }
+                
+            }
+            return 0;
+        }
+     
+    }
+   
+}
+
+
+// ===== FILE: ArraysHandler.cs =====
+using System.Text.RegularExpressions;
+
+namespace Lexer
+{
+    public static class ArraysHandler
+    {
+        public static void HandleArrayOperation(string code)
+        {
+            Regex arrayDeclarationPattern = new(@"\s*(\w+)\s*\[\s*\]\s*(\w+)\s*->\s*\[(.*)\]\s*");
+            Regex arrayElementAccessPattern = new(@"\s*(\w+)\s*\[\s*(\d+)\s*\]\s*->\s*(.*)");
+
+            if (arrayDeclarationPattern.IsMatch(code))
+            {
+                Match match = arrayDeclarationPattern.Match(code);
+                DeclareArray(match.Groups[2].Value, match.Groups[1].Value, match.Groups[3].Value);
+            }
+            else if (arrayElementAccessPattern.IsMatch(code))
+            {
+                Match match = arrayElementAccessPattern.Match(code);
+                AccessOrSetArrayElement(match.Groups[1].Value, int.Parse(match.Groups[2].Value), match.Groups[3].Value);
+            }
+        }
+
+        private static void DeclareArray(string name, string type, string elements)
+        {
+            string[] elementList = elements.Split(',').Select(el => el.Trim()).ToArray();
+            MemoryHandler.Memorys[name] = Convertor.ConvertToArrayType(type, elementList);
+        }
+
+        private static void AccessOrSetArrayElement(string name, int index, string value)
+        {
+            if (!MemoryHandler.Memorys.ContainsKey(name))
+            {
+                ErrorHandler.Send("Array Not Found Error", $"The array '{name}' has not been declared.");
+                return;
+            }
+
+            Array array = (Array)MemoryHandler.Memorys[name];
+            if (MemoryHandler.Memorys[name].GetType() != typeof(Array))
+            {
+                ErrorHandler.Send("Type Mismatch Error", $"The identifier '{name}' is not an array.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                Console.WriteLine(array.GetValue(index));
+            }
+            else
+            {
+                array.SetValue(Convert.ChangeType(value, conversionType: array.GetType().GetElementType()), index);
+                MemoryHandler.Memorys[name] = array;
+            }
+        }
+
+
+    }
+}
+
+
+// ===== FILE: ConditionsHandler.cs =====
+using System.Text.RegularExpressions;
+
+namespace Lexer
+{
+    public static class ConditionsHandler
+    {
+        public static bool Run(string code, int currentcount = 0)
+        {
+            code = code.Replace("*34M#", "\n");
+            string[] tokens = code.Trim().Split(' ');
+            if (tokens[0].Trim().StartsWith("if"))
+            {
+                //remove if from the code and send it to the if handler
+                return Ifhandler(code.Trim().TrimStart().TrimEnd(), currentcount);
+
+            }
+            else if (tokens[0].Trim().StartsWith("while"))
+            {
+                //remove if from the code and send it to the if handler
+                return WhileHandler(code.Trim().TrimStart().TrimEnd());
+
+            }
+            return true;
+        }
+        private static bool WhileHandler(string code)
+        {
+            Regex Regex = new(@"while\s*\((.*)\s*(!=|==|<=|>=|<|>)\s*(.*)\)\s*(:\s*\d*)?\s*{\s*([\n\s\w\d\S\s]*)\s*}");
+            MatchCollection Match = Regex.Matches(code);
+
+            if (Match.Count > 0)
+            {
+                Match m_;
+
+                Regex __ = new(@"\s*\(\s*(.*)\s*(!=|==|<=|>=|<<|>>)\s*(.*)\s*\)");
+                m_ = __.Match(Match[0].Groups[0].Value);
+                _ = Match[0].Groups[0].Value;
+                if (!m_.Success)
+                {
+                    ErrorHandler.Send(reason: "Invaild if token", message: code);
+                }
+                string leftopr = m_.Groups[1].Value;
+                string condition = m_.Groups[2].Value;
+                string rightopr = m_.Groups[3].Value;
+                string[] value_ = new string[2];
+                dynamic? GetValue = default;
+                string FirstOptype = "object";
+                if (leftopr.Contains("="))
+                {
+                    MemoryHandler.WatchForChanges();
+                    _ = ValueHandler.Run(leftopr);
+                    Regex Rege = new($"\\s*({StringHelper.AllTypes})\\s+(.*)\\s*=\\s*(.*)\\s*");
+                    Match Match_ = Rege.Match(leftopr);
+
+                    GetValue = ValueHandler.Run(Match_.Groups[1].Value + " <- " + Match_.Groups[2].Value);
+                    value_[0] = Match_.Groups[1].Value + " <- " + Match_.Groups[2].Value;
+                    FirstOptype = Match_.Groups[1].Value;
+                    MemoryHandler.StopWatcher = true;
+                    MemoryHandler.RemoveLastChangesFromMemory();
+                    if (GetValue is string)
+                    {
+                        GetValue = GetValue.TrimEnd();
+                    }
+
+                }
+                else if (leftopr.Contains("<-") || leftopr.Contains("!extern"))
+                {
+                    Regex regex = new($@"\s*({StringHelper.AllTypes})\s*<-\s*(\D+\w*)\s*");
+                    Match match = regex.Match(code);
+                    if (match.Success)
+                    {
+                        FirstOptype = match.Groups[1].Value;
+                    }
+                    value_[0] = leftopr;
+                    GetValue = ValueHandler.Run(leftopr);
+                }
+
+                else
+                {
+                    GetValue = Convertor.GetType(!StringHelper.AllTypes.Split("|").Any(x => x == leftopr.Trim()) ? "string" : leftopr, leftopr);
+
+                }
+                dynamic GetSecoValue;
+                if (rightopr.Contains("="))
+                {
+                    MemoryHandler.WatchForChanges();
+                    _ = ValueHandler.Run(rightopr);
+                    Regex Rege = new($"\\s*({StringHelper.AllTypes})\\s+(.*)\\s*=\\s*(.*)\\s*");
+                    Match Match_ = Rege.Match(rightopr);
+                    value_[2] = Match_.Groups[1].Value + " <- " + Match_.Groups[2].Value;
+                    GetSecoValue = ValueHandler.Run(Match_.Groups[1].Value + " <- " + Match_.Groups[2].Value);
+                    _ = Match_.Groups[1].Value;
+                    MemoryHandler.StopWatcher = true;
+                    MemoryHandler.RemoveLastChangesFromMemory();
+                    if (GetSecoValue is string)
+                    {
+                        GetSecoValue = GetSecoValue.TrimEnd();
+                    }
+
+
+                }
+                else if (rightopr.Contains("<-") || rightopr.Contains("!extern"))
+                {
+                    Regex regex = new($@"\s{{0,}}({StringHelper.AllTypes})\s*<-\s*(\D+\w*)\s*");
+                    Match match = regex.Match(code);
+                    if (match.Success)
+                    {
+                        _ = match.Groups[1].Value;
+                    }
+                    value_[1] = rightopr;
+                    GetSecoValue = ValueHandler.Run(rightopr);
+                }
+                else
+                {
+
+
+                    GetSecoValue = rightopr.Contains("<-") ? ValueHandler.Run(rightopr) : Convertor.GetType(!StringHelper.AllTypes.Split("|").Any(x => x == FirstOptype.Trim()) ? "string" : FirstOptype, rightopr);
+                }
+
+                Regex replace = new(@"{\s*([\n\s\w\d\S\s]*)\s*}");
+
+                MatchCollection m = replace.Matches(code);
+
+                if (m.Count > 0)
+                {
+                    code = m[0].Groups[1].Value.TrimStart();
+
+                }
+                void Code()
+                {
+                    
+
+                    if (leftopr.Contains("<-") || leftopr.Contains("!extern"))
+                    {
+                       
+                        value_[0] = leftopr;
+                        GetValue = ValueHandler.Run(leftopr);
+                    }
+                    else
+                    {
+                        GetValue = Convertor.GetType(!StringHelper.AllTypes.Split("|").Any(x => x == leftopr.Trim()) ? "string" : leftopr, leftopr);
+                    }
+                    if (rightopr.Contains("<-") || rightopr.Contains("!extern"))
+                    {
+                       
+                        value_[1] = rightopr;
+                        GetSecoValue = ValueHandler.Run(rightopr);
+                    }
+                    else
+                    {
+                        GetSecoValue = rightopr.Contains("<-") ? ValueHandler.Run(rightopr) : Convertor.GetType(!StringHelper.AllTypes.Split("|").Any(x => x == FirstOptype.Trim()) ? "string" : FirstOptype, rightopr);
+                    }
+
+                    Regex replace = new(@"{\s*([\n\s\w\d\S\s]*)\s*}");
+
+                    MatchCollection m = replace.Matches(code);
+
+                    if (m.Count > 0)
+                    {
+                        code = m[0].Groups[1].Value.TrimStart();
+
+                    }
+
+                    Lexer.Run(code.Trim());
+
+
+
+                }
+                switch (condition)
+                {
+                    case "!=":
+                        while (GetValue != GetSecoValue)
+                        {
+                            Code();
+                        }
+
+
+                        break;
+                    case "==":
+                        while (GetValue == GetSecoValue)
+                        {
+                            Code();
+                        }
+
+                        break;
+                    case ">=":
+                        if (GetValue >= GetSecoValue)
+                        {
+                            Code();
+                        }
+
+                        break;
+                    case "<=":
+                        while (GetValue <= GetSecoValue)
+                        {
+                            Code();
+                        }
+
+                        break;
+                    case ">>":
+                        while (GetValue > GetSecoValue)
+                        {
+                            Code();
+                        }
+
+                        break;
+                    case "<<":
+                        while (GetValue < GetSecoValue)
+                        {
+                            Code();
+                        }
+
+                        break;
+
+                }
+
+
+            }
+            return true;
+
+        }
+        private static bool Ifhandler(string code, int currentcount = 0)
+        {
+            bool Success = false;
+            Regex Regex = new(@"\s*(if\s*\((.*)\s*(!=|==|<=|>=|<|>)\s*(.*)\)\s*{\s*([\n\s\w\d\S\s]*?)\s*})|(elif\s*\((.*)\s*(!=|==|<=|>=|<|>)\s*(.*)\)\s*{\s*([\n\s\w\d\S\s]*?)\s*})|(else\s*{\s*([\n\s\w\d\S\s]*?)\s*})");
+            MatchCollection Match = Regex.Matches(code);
+
+            if (Match.Count > 0)
+            {
+                Match m_;
+                for (; currentcount < Match.Count; currentcount++)
+                {
+
+                    Regex __ = new(@"\s*\(\s*(.*)\s*(!=|==|<=|>=|<<|>>)\s*(.*)\s*\)");
+                    m_ = __.Match(Match[0].Groups[0].Value);
+                    string oldcode = Match[0].Groups[0].Value;
+                    if (!m_.Success)
+                    {
+                        ErrorHandler.Send(reason: "Invaild if token", message: code);
+                    }
+                    string leftopr = m_.Groups[1].Value;
+                    string condition = m_.Groups[2].Value;
+                    string rightopr = m_.Groups[3].Value;
+                    dynamic? GetValue = default;
+                    string FirstOptype = "object";
+                    if (leftopr.Contains("="))
+                    {
+                        MemoryHandler.WatchForChanges();
+                        _ = ValueHandler.Run(leftopr);
+                        Regex Rege = new($"\\s*({StringHelper.AllTypes})\\s+(.*)\\s*=\\s*(.*)\\s*");
+                        Match Match_ = Rege.Match(leftopr);
+                        GetValue = ValueHandler.Run(Match_.Groups[1].Value + " <- " + Match_.Groups[2].Value);
+                        FirstOptype = Match_.Groups[1].Value;
+                        MemoryHandler.StopWatcher = true;
+                        MemoryHandler.RemoveLastChangesFromMemory();
+                        if (GetValue is string)
+                        {
+                            GetValue = GetValue.TrimEnd();
+                        }
+
+                    }
+                    else if (leftopr.Contains("<-") || leftopr.Contains("!extern"))
+                    {
+                        Regex regex = new($@"\s{{0,}}({StringHelper.AllTypes})\s*<-\s*(\D+\w*)\s*");
+                        Match match = regex.Match(code);
+                        if (match.Success)
+                        {
+                            FirstOptype = match.Groups[1].Value;
+                        }
+                        GetValue = ValueHandler.Run(leftopr);
+                    }
+                    else
+                    {
+                        _ = Convertor.GetType(leftopr, rightopr);
+
+
+
+                    }
+                    dynamic GetSecoValue;
+                    if (rightopr.Contains("="))
+                    {
+                        MemoryHandler.WatchForChanges();
+                        _ = ValueHandler.Run(rightopr);
+                        Regex Rege = new($"\\s*({StringHelper.AllTypes})\\s+(.*)\\s*=\\s*(.*)\\s*");
+                        Match Match_ = Rege.Match(rightopr);
+                        GetSecoValue = ValueHandler.Run(Match_.Groups[1].Value + " <- " + Match_.Groups[2].Value);
+                        _ = Match_.Groups[1].Value;
+                        MemoryHandler.StopWatcher = true;
+                        MemoryHandler.RemoveLastChangesFromMemory();
+                        if (GetSecoValue is string)
+                        {
+                            GetSecoValue = GetSecoValue.TrimEnd();
+                        }
+
+
+                    }
+                    else if (rightopr.Contains("<-") || rightopr.Contains("!extern"))
+                    {
+                        Regex regex = new($@"\s{{0,}}({StringHelper.AllTypes})\s*<-\s*(\D+\w*)\s*");
+                        Match match = regex.Match(code);
+                        if (match.Success)
+                        {
+                            _ = match.Groups[1].Value;
+                        }
+                        GetSecoValue = ValueHandler.Run(rightopr);
+                    }
+                    else
+                    {
+                        GetSecoValue = rightopr.Contains("<-") ? ValueHandler.Run(rightopr) : Convertor.GetType(FirstOptype, rightopr);
+                    }
+
+                    Regex replace = new(@".*{([\s\S]*?)}");
+
+                    MatchCollection m = replace.Matches(code);
+
+                    if (m.Count > 0)
+                    {
+                        code = m[0].Groups[1].Value.TrimStart();
+
+                    }
+                    switch (condition)
+                    {
+                        case "!=":
+                            if (GetValue != GetSecoValue)
+                            {
+                                Lexer.Run(code);
+                                return true;
+                            }
+
+                            break;
+                        case "==":
+                            if (GetValue == GetSecoValue)
+                            {
+                                Lexer.Run(code);
+                                return true;
+                            }
+
+                            break;
+                        case ">=":
+                            if (GetValue >= GetSecoValue)
+                            {
+                                Lexer.Run(code);
+                                return true;
+                            }
+
+                            break;
+                        case "<=":
+                            if (GetValue <= GetSecoValue)
+                            {
+                                Lexer.Run(code);
+                                return true;
+                            }
+
+                            break;
+                        case ">>":
+                            if (GetValue > GetSecoValue)
+                            {
+                                Lexer.Run(code);
+                                return true;
+                            }
+
+                            break;
+                        case "<<":
+                            if (GetValue < GetSecoValue)
+                            {
+                                Lexer.Run(code);
+                                return true;
+                            }
+
+                            break;
+                        default:
+                            Lexer.Run(code);
+                            break;
+                    }
+                    List<string> values = [];
+                    string code_ = "";
+                    try
+                    {
+
+
+                        for (int s = currentcount; s < Match.Count; s++)
+                        {
+                            if (!string.IsNullOrEmpty(Match[s].Value) && Match[s].Value != oldcode)
+                            {
+                                values.Add(Match[s].Value);
+
+                            }
+                        }
+
+                    }
+                    catch
+                    {
+
+                    }
+                    if (Success && !values[0].StartsWith("if"))
+                    {
+
+                        return true;
+                    }
+                    else
+                    {
+                        try
+                        {
+
+                            if (values[0].Trim().StartsWith("else"))
+                            {
+                                Regex r = new(@".*{([\s\S]*?)}");
+                                if (r.IsMatch(values[0]))
+                                {
+                                    Lexer.Run(r.Match(values[0]).Groups[1].Value);
+                                }
+                                else
+                                {
+                                    ErrorHandler.Send(code_, "Invaild else token");
+                                }
+
+                                return true;
+                            }
+                            else if (values[0].Trim().StartsWith("elif"))
+                            {
+                                foreach (string item in values)
+                                {
+
+                                    code_ += item + "\n";
+
+
+                                }
+                                code = code_.TrimStart().Trim().TrimEnd();
+
+
+                                code = "if" + code.Remove(code.IndexOf("elif"), "elif".Length);
+
+
+                                return Run(code.Trim());
+                            }
+                            else if (values[0].Trim().StartsWith("if"))
+                            {
+                                foreach (string item in values)
+                                {
+
+                                    code_ += item + "\n";
+
+                                }
+
+                                return Run(code_);
+                            }
+                        }
+                        catch
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+            }
+            else
+            {
+                ErrorHandler.Send(reason: "Invaild if token", message: code);
+            }
+            return true;
+        }
+    }
+}
+
+
+// ===== FILE: Convertor.cs =====
+using System.Data;
+
+namespace Lexer
+{
+    public class Convertor
+    {
+        public static dynamic ConvertToArrayType(string value, object[] arrays)
+        {
+            switch (value.Replace("::", null))
+            {
+                case "nint":
+                    IEnumerable<nint> nint = arrays.Cast<nint>();
+                    return nint.ToArray();
+                case "IntPtr":
+                    IEnumerable<IntPtr> ptr = arrays.Cast<IntPtr>();
+                    return ptr.ToArray();
+                case "string":
+                    IEnumerable<string> strs = arrays.Cast<string>();
+                    return strs.ToArray();
+                case "int32":
+                    IEnumerable<int> ints = arrays.Cast<int>();
+                    return ints.ToArray();
+                case "int64":
+                    IEnumerable<long> longs = arrays.Cast<long>();
+                    return longs.ToArray();
+                case "uint32":
+                    IEnumerable<uint> uints = arrays.Cast<uint>();
+                    return uints.ToArray();
+                case "uint64":
+                    IEnumerable<ulong> ulongs = arrays.Cast<ulong>();
+                    return ulongs.ToArray();
+                case "double":
+                    IEnumerable<double> doubles = arrays.Cast<double>();
+                    return doubles.ToArray();
+                case "bool":
+                    IEnumerable<bool> bools = arrays.Cast<bool>();
+                    return bools.ToArray();
+                case "byte":
+                    IEnumerable<byte> bytes = arrays.Cast<byte>();
+                    return bytes.ToArray();
+                case "char":
+                    IEnumerable<char> chars = arrays.Cast<char>();
+                    return chars.ToArray();
+                // wtf is datetime? Convert.ToDateTime();
+
+                default:
+                    IEnumerable<object> obj = arrays.Cast<object>();
+                    return obj.ToArray();
+            }
+        }
+        private static dynamic HexInt32(string value)
+        {
+            return value.Contains("0x") ? Convert.ToInt32(value, 16) : Convert.ToInt32(value);
+        }
+
+        private static dynamic HexInt64(string value)
+        {
+            return value.Contains("0x") ? Convert.ToInt64(value, 16) : Convert.ToInt64(value);
+        }
+
+        private static dynamic HexUInt32(string value)
+        {
+            return value.Contains("0x") ? Convert.ToUInt32(value, 16) : Convert.ToUInt32(value);
+        }
+
+        private static dynamic HexUInt64(string value)
+        {
+            return value.Contains("0x") ? Convert.ToUInt64(value, 16) : Convert.ToUInt64(value);
+        }
+
+        public static dynamic GetType(string type, dynamic value)
+        {
+            if (value is string st)
+            {
+                value = st == "null" ? null! : st;
+            }
+            if (value == null)
+            {
+                return null!;
+            }
+            if (((object)value).GetType() == typeof(object[]) || ((object)value).GetType() == typeof(int[]))
+            {
+                return ConvertToArrayType(type, value);
+            }
+            if (type.Contains("*"))
+            {
+                return "0x" + new IntPtr(Convert.ToInt64(value)).ToString("X");
+            }
+            if (type.Contains("int"))
+            {
+                try
+                {
+                    DataTable table = new();
+                    dynamic result = table.Compute(value, "");
+                    value = result;
+                }
+                catch
+                {
+
+                }
+            }
+
+
+            try
+            {
+                try
+                {
+                    if (type == "string" && value is IntPtr str)
+                    {
+                        value = StringHelper.GetString(str.ToInt64());
+                    }
+                }
+                catch { }
+                switch (Convert.ToString(type))
+                {
+                    case "nint":
+                        return (nint)Convert.ToInt64(value);
+                    case "IntPtr":
+                        return value is not IntPtr ? new IntPtr(Convert.ToInt64(value)) : value;
+                    case "object":
+                        return value;
+                    case "string":
+                        return Convert.ToString(value); // No conversion needed
+                    case "int32":
+                        return HexInt32(value.ToString());
+                    case "int64":
+                        return HexInt64(value.ToString());
+                    case "uint32":
+                        return HexUInt32(value.ToString());
+                    case "uint64":
+                        return HexUInt64(value.ToString());
+                    case "double":
+                        return Convert.ToDouble(value);
+                    case "bool":
+                        return Convert.ToBoolean(value);
+                    case "byte":
+                        return Convert.ToByte(value);
+                    case "char":
+                        return Convert.ToChar(value);
+                    case "datetime":
+                        return Convert.ToDateTime(value);
+                    case "decimal":
+                        return Convert.ToDecimal(value);
+                    case "float":
+                        return Convert.ToSingle(value);
+                    case "sbyte":
+                        return Convert.ToSByte(value);
+                    case "short":
+                        return Convert.ToInt16(value);
+                    case "ushort":
+                        return Convert.ToUInt16(value);
+                    default:
+                        ErrorHandler.Send("", $"The type '{type}' is not supported.");
+                        return 0;
+                }
+
+            }
+            catch (Exception e)
+            {
+                ErrorHandler.Send(e.Message, value ?? "Null");
+            }
+            return 0;
+        }
+    }
+}
+
+// ===== FILE: ErrorHandler.cs =====
+namespace Lexer
+{
+    public class ErrorHandler
+    {
+        public static void Send(string message, string reason)
+        {
+
+            string error = $"Exception \n {message}";
+            Console.WriteLine(error);
+            error = "\n             ";
+            for (int i = 0; message.Length > i; i++)
+            {
+                error += "^";
+            }
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Line : {Lexer.CurrentLine}" + error + $" {reason}");
+            Console.ResetColor();
+            Environment.Exit(-8);
+        }
+    }
+}
+
+// ===== FILE: Function.cs =====
+namespace Lexer
+{
+    public partial class MethodHandler
+    {
+        public class Function
+        {
+            public string? FunctionName;
+            public string? Code;
+            public uint ParametersCount;
+            public List<(string Type,string Name)> ParametersInformation = new List<(string Type, string Name)>();
+            
+
+
+        }
+
+    }
+}
+
+
+// ===== FILE: globalusing.cs =====
+
+
+// ===== FILE: Lexer.cs =====
+using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace Lexer
+{
+    public static class Lexer
+    {
+        private static bool StartupCreated = false;
+        private static bool LoadIncludes = false;
+        private static bool LoadIncludes2 = false;
+        private static readonly bool IsPreprocessed = false;
+        private static bool AsGroupped = false;
+        private static bool LibraryLoaded = false;
+        private static readonly bool DuplicateIncludes = false;
+        public static uint CurrentLine = 0;
+        private static void StartUp()
+        {
+            if (!StartupCreated)
+            {
+                ValueHandler.Run("object lpreturn = 0");
+                for (int i = 0; i < 10; i++)
+                {
+                    ValueHandler.Run($"object lpparm{i} = 0");
+                }
+            }
+        }
+        private static string LoadInclude(string code, string defaultFolderPath)
+        {
+            string newcode = "";
+
+            Regex regex = new(@"\.include\s+(.*)\s+from\s+(.*)");
+            MatchCollection match = regex.Matches(code);
+            List<string> functions = [];
+            if (match.Count > 0)
+            {
+                for (int i = 0; i < match.Count; i++)
+                {
+                    string MethodName = match[0].Groups[1].Value;
+                    string From = match[0].Groups[2].Value.TrimEnd();
+                    if (!From.EndsWith(".sc"))
+                    {
+                        From += ".sc";
+                    }
+                    From = From.TrimEnd();
+
+                    string fullPath = Path.IsPathRooted(From) ? From : Path.Combine(defaultFolderPath, From);
+
+                    if (File.Exists(fullPath))
+                    {
+
+                        Regex FindFunction = new($@"\.method\s+create\s+{MethodName}\s*\(.*?\)\s*:\s*(?:Auto|\d*)\s*{{(\s*.*\s*)*}}");
+                        MatchCollection matches = FindFunction.Matches(File.ReadAllText(fullPath));
+                        if (matches.Count > 0)
+                        {
+                            if (!functions.Contains(matches[0].Value))
+                            {
+                                functions.Add(matches[0].Value);
+                            }
+                        }
+                        else
+                        {
+                            ErrorHandler.Send(message: "Function Not Found", reason: $"The function {MethodName} was not found in {fullPath}.");
+                        }
+                    }
+                    else
+                    {
+                        ErrorHandler.Send(message: "File Not Found", reason: $"The file {From} was not found.");
+                    }
+                }
+                foreach (string item in functions)
+                {
+                    newcode += item + "\n";
+                }
+            }
+
+            foreach (Match item in match)
+            {
+                code = code.Replace(item.Value.TrimEnd(), null);
+            }
+            newcode += code;
+            return newcode;
+
+        }
+        private static string LoadMethods(string code, string defaultFolderPath)
+        {
+            Regex regex = new(@"\.method\s+call\s+(\w+\d*)\s+from\s+(.+)");
+            MatchCollection match = regex.Matches(code);
+            List<string> functions = [];
+            if (match.Count > 0)
+            {
+                string MethodName = match[0].Groups[1].Value;
+                string From = match[0].Groups[2].Value;
+
+                // Append '.sc' if it's not present in the file path
+                if (!From.EndsWith(".sc"))
+                {
+                    From += ".sc";
+                }
+                From = From.TrimEnd();
+                string fullPath = Path.IsPathRooted(From) ? From : Path.Combine(defaultFolderPath, From);
+
+                if (File.Exists(fullPath))
+                {
+                    Regex FindFunction = new($@"\.method\s+create\s+{MethodName}\s*\(.*?\)\s*(?:Auto|\d*)\s*{{(\s*.*\s*)*}}");
+                    MatchCollection matches = FindFunction.Matches(File.ReadAllText(fullPath));
+                    if (matches.Count > 0)
+                    {
+                        if (!functions.Contains(matches[0].Value) && !code.Contains(matches[0].Value))
+                        {
+                            functions.Add(matches[0].Value);
+                        }
+                    }
+                    else
+                    {
+                        ErrorHandler.Send(message: "Function Not Found", reason: $"The function {MethodName} was not found in {fullPath}.");
+                    }
+                }
+                else
+                {
+                    ErrorHandler.Send(message: "File Not Found", reason: $"The file {fullPath} was not found.");
+                }
+            }
+
+            Regex findFrom = new(@"call\s+(\w+\d*)\s+from\s+(.*)");
+            MatchCollection matchesFrom = findFrom.Matches(code);
+            for (int i = 0; i < matchesFrom.Count; i++)
+            {
+                code = code.Replace(matchesFrom[i].Value, $"call::local {matchesFrom[i].Groups[1]}");
+            }
+
+            string newCode = string.Join("\n", functions) + "\n" + code;
+            return newCode;
+        }
+        private static string Groups(string code)
+        {
+            MatchCollection matches = Regex.Matches(code, @"([^;{}]+);");
+            foreach (Match match in matches)
+            {
+                string n = match.Groups[0].Value.Remove(match.Value.LastIndexOf(";"), 1).Replace("\r\n", null);
+                code = code.Replace(match.Groups[0].Value, "\n" + n);
+
+            }
+            return code;
+        }
+        private static string IncludeLoader2(string code, string defaultFolderPath)
+        {
+            Regex includeRegex = new(@"\.include\s+(.+)\s*");
+            MatchCollection includeMatches = includeRegex.Matches(code);
+            HashSet<string> includedFiles = [];
+            StringBuilder newCode = new();
+
+            // Process each include statement
+            foreach (Match m in includeMatches)
+            {
+                string From = m.Groups[1].Value.TrimEnd();
+                if (!From.EndsWith(".sc"))
+                {
+                    From += ".sc";
+                }
+
+                string fullPath = Path.IsPathRooted(From) ? From : Path.Combine(defaultFolderPath, From);
+
+                if (File.Exists(fullPath) && !includedFiles.Contains(fullPath))
+                {
+                    _ = includedFiles.Add(fullPath);
+                    string fileContent = File.ReadAllText(fullPath);
+                    _ = newCode.AppendLine(fileContent);
+                }
+                else if (!File.Exists(fullPath))
+                {
+                    ErrorHandler.Send(message: "File Not Found", reason: $"The file {fullPath} was not found.");
+                }
+            }
+
+            // Remove the include directives from the code
+            code = includeRegex.Replace(code, "");
+
+            _ = newCode.Append(code);
+            return newCode.ToString();
+        }
+        private static string PreprocessCode(string code)
+        {
+            string[] lines = code.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+            StringBuilder processedLines = new();
+            bool foundSemicolon = false;
+
+            foreach (string line in lines)
+            {
+                if (line.TrimEnd().EndsWith(";"))
+                {
+                    _ = processedLines.Append(line.Trim());
+                    foundSemicolon = true;
+                }
+                else
+                {
+                    _ = processedLines.AppendLine(line);
+                }
+            }
+
+            if (!foundSemicolon)
+            {
+                ErrorHandler.Send(message: "Preprocessing Error", reason: "No semicolon ';' found in code.");
+                return "...";
+            }
+
+            return processedLines.ToString();
+        }
+        private static string RemoveDuplicateIncludes(string code)
+        {
+            Regex includeRegex = new(@"\.include\s+(.+?)\s*$", RegexOptions.Multiline);
+            MatchCollection includeMatches = includeRegex.Matches(code);
+
+            HashSet<string> includedFiles = [];
+            _ = new StringBuilder();
+
+            foreach (Match match in includeMatches)
+            {
+                string includePath = match.Groups[1].Value.Trim();
+
+                if (!includedFiles.Contains(includePath))
+                {
+                    _ = includedFiles.Add(includePath);
+                }
+                else
+                {
+                    // Replace duplicate include with an empty string
+                    code = code.Replace(match.Value, "");
+                }
+            }
+
+            return code;
+        }
+
+
+        public static void Run(string code, bool fromaMethodcaller = false, string Path = "")
+        {
+
+            //Comment Remover
+            Regex regex = new(@"\/\/(.*)");
+            MatchCollection matchs = regex.Matches(code);
+            for (int i = 0; i < matchs.Count; i++)
+            {
+                code = code.Replace(matchs[i].Value, null);
+            }
+            //End Comment Remover\
+            //Remove Duplicate Includes
+            //if (!DuplicateIncludes)
+            //{
+            //    code = RemoveDuplicateIncludes(code);
+            //    DuplicateIncludes = true;
+            //}
+            //End Remove Duplicate Includes
+            if (!StartupCreated)
+            {
+                StartUp();
+                StartupCreated = true;
+            }
+            //if(!IsPreprocessed)
+            //{
+            //    code = PreprocessCode(code);
+            //    IsPreprocessed = true;
+            //}
+            if (!AsGroupped)
+            {
+                code = Groups(code);
+                AsGroupped = true;
+            }
+            if (!LoadIncludes)
+            {
+                code = LoadInclude(code, Path);
+                LoadIncludes = true;
+            }
+            if (!LoadIncludes2)
+            {
+                code = IncludeLoader2(code, Path);
+                LoadIncludes2 = true;
+            }
+
+            if (!LibraryLoaded)
+            {
+                code = LoadMethods(code, Path);
+                LibraryLoaded = true;
+            }
+
+
+
+            string pattern = @"#start_cond([\s\S]*?)#end_cond";
+            MatchCollection matches = new Regex(pattern).Matches(code);
+            foreach (Match item in matches)
+            {
+                string block = item.Value.Replace("\n", "*34M#");
+                try
+                {
+                    block = block.Remove(block.IndexOf("#start_cond"), "#start_cond".Length);
+                    block = block.Remove(block.LastIndexOf("#end_cond"));
+                    block = block.Remove(block.IndexOf("*34M#"), "*34M#".Length);
+                }
+                catch
+                {
+                    ErrorHandler.Send(block, "Invalid Condition Block");
+                    return;
+                }
+                code = code.Replace(item.Groups[0].Value, block);
+            }
+
+
+            pattern = @"while\s*\((.*)\s*(!=|==|<=|>=|<|>)\s*(.*)\)\s*(:\s*\d*)?\s*{\s*([\n\s\w\d\S\s]*?)}";
+            matches = Regex.Matches(code, pattern);
+
+            foreach (Match match in matches)
+            {
+                string methodBlock ="\n"+match.Value;
+
+                string modifiedBlock = Regex.Replace(methodBlock, "\n", "*34M#");
+                code = code.Replace(match.Value, modifiedBlock);
+               
+            }
+
+            if (!fromaMethodcaller)
+            {
+                pattern = @".method\s+(create|overwrite)\s+(?:\w+\d*)\s*\([W\w\s\S\d\D]*?\).*\s*\{([\n\s\w\d\S\s]*?)\}";
+                matches = Regex.Matches(code, pattern);
+
+                foreach (Match match in matches)
+                {
+                    string methodBlock = match.Value;
+
+                    string modifiedBlock = Regex.Replace(methodBlock, "\n", "*34M#9823");
+                    code = code.Replace(match.Value, modifiedBlock);
+
+                }
+            }
+
+          
+            string removeemtryspaces = "";
+            _ = code.TrimEnd().TrimStart().Split('\n');
+
+
+            foreach (string c in code.TrimEnd().TrimStart().Split('\n'))
+            {
+                removeemtryspaces += c.Length >= 1 ? c + "\n" : string.Empty;
+            }
+
+            List<string> codeslines = [];
+            foreach (string item in removeemtryspaces.Split('\n'))
+            {
+                if (item.Length > 0 && item != "\r")
+                {
+                    codeslines.Add(item.Replace("\n", null).Trim());
+                }
+            }
+
+            string[] codes = codeslines.ToArray();
+
+
+            for (int i = 0; i < codes.Length; i++)
+            {
+                codes[i] = codes[i].TrimStart().TrimEnd();
+            }
+
+
+            for (int i = 0; i < codes.Length; i++)
+            {
+
+                CurrentLine = (uint)i;
+                if (codes[i] == "")
+                {
+                    continue;
+                }
+                string[] tokens = codes[i].Split(' ');
+                bool ISType = (StringHelper.AllTypes + "|Add|Sub").Contains(tokens[0].Replace(" ", null).TrimEnd());
+                if (tokens[0].StartsWith("*34M#"))//for if,elif,else conditions
+                {
+                    _ = ConditionsHandler.Run(codes[i]);
+                }
+                else if (tokens[0] == ".method")
+                {
+                    MethodHandler.Run(codes[i]);
+                }
+                else
+                {
+
+                    if (ISType)
+                    {
+                        ValueHandler.Run(codes[i]);
+                    }
+                    else
+                    {
+                        ErrorHandler.Send(codes[i], "invaild Instruction");
+                    }
+                }
+
+            }
+
+        }
+
+
+
+    }
+
+    public static class Timer
+    {
+      public static Stopwatch sw = new Stopwatch();
+       public static void Start()
+        {
+            sw.Start();
+        }
+        public static long Stop()
+        {
+            sw.Stop();
+            return sw.ElapsedMilliseconds;  
+        }
+        public static void Reset()
+        {
+            sw.Reset();
+        }
+        public static void Restart()
+        {
+            sw.Restart();
+        }
+        public static void Print()
+        {
+            Console.WriteLine(sw.ElapsedMilliseconds);
+        }
+    }
+    public class Helper
+    {
+        // Existing methods
+        public static void Max(int[][] e)
+        {
+            Console.WriteLine(e);
+        }
+        public static void FindMax(int[] t, string[] id, int eo)
+        {
+            for (int i = 0; i < t.Length; i++)
+            {
+                Console.WriteLine(t[i]);
+            }
+
+
+        }
+
+        public static void Pi()
+        {
+            Console.WriteLine("LOL");
+        }
+
+        public void Add(int value1, int value2)
+        {
+            Print(value2 + value1);
+        }
+        public void Prints(int[] text)
+        {
+            foreach (int item in text)
+            {
+                Console.Write(item + " ");
+            }
+        }
+        public void Print(object text)
+        {
+            Console.WriteLine(text);
+        }
+
+        public static void Read(string me)
+        {
+            Console.WriteLine("LOL " + me);
+        }
+
+        // New enhanced methods
+        public static int Max(int[] numbers)
+        {
+            return numbers.Max();
+        }
+
+        public static double CalculateAreaOfCircle(double radius)
+        {
+            return Math.PI * Math.Pow(radius, 2);
+        }
+
+        public static string ReverseString(string input)
+        {
+            return new string(input.Reverse().ToArray());
+        }
+
+        public static bool IsPalindrome(string input)
+        {
+            string normalized = input.ToLower().Replace(" ", "");
+            return normalized.SequenceEqual(normalized.Reverse());
+        }
+
+        public static void Fibonacci(int n)
+        {
+            int a = 0, b = 1;
+            Console.Write($"{a} {b} ");
+            for (int i = 2; i < n; i++)
+            {
+                int c = a + b;
+                Console.Write($"{c} ");
+                a = b;
+                b = c;
+            }
+            Console.WriteLine();
+        }
+
+        public static void ConvertToBinary(int number)
+        {
+            Console.WriteLine(Convert.ToString(number, 2));
+        }
+
+        public static void PrintEvenOrOdd(int number)
+        {
+            Console.WriteLine(number % 2 == 0 ? $"{number} is Even" : $"{number} is Odd");
+        }
+    }
+
+}
+
+
+// ===== FILE: MemoryHandler.cs =====
+namespace Lexer
+{
+    public static unsafe class MemoryHandler
+    {
+
+        public static Dictionary<string, dynamic> Memorys = [];
+        private static readonly object obj = new();
+        public static bool StopWatcher;
+        private static List<string>? keys;
+        public static void WatchForChanges()
+        {
+            StopWatcher = false;
+            keys = [];
+            int lastCount = Memorys.Count;
+            new Thread(() =>
+            {
+                while (!StopWatcher)
+                {
+                    if (Memorys.Count > lastCount)
+                    {
+                        keys.Add(Memorys.ToList().Last().Key);
+                        lastCount = Memorys.Count;
+                    }
+                }
+            }).Start();
+        }
+        public static void StopWatching()
+        {
+            lock (obj)
+            {
+                StopWatcher = true;
+            }
+        }
+        public static void RemoveLastChangesFromMemory()
+        {
+            if (!StopWatcher)
+            {
+                throw new Exception("Watcher must be stopped first");
+            }
+            else
+            {
+
+                foreach (string key in keys)
+                {
+                    if (Memorys.ContainsKey(key))
+                    {
+                        _ = Memorys.Remove(key);
+                    }
+                }
+
+
+            }
+        }
+
+    }
+}
+
+
+// ===== FILE: MemoryInfo.cs =====
+namespace Lexer
+{
+    public struct MemoryInfo
+    {
+        public string name;
+        public decimal value;
+    }
+}
+
+
+// ===== FILE: MethodHandler.cs =====
+using System.Diagnostics;
+using System.Net.NetworkInformation;
+using System.Reflection;
+using System.Text.RegularExpressions;
+
+namespace Lexer
+{
+    public partial class MethodHandler
+    {
+        public static void Run(string code)
+        {
+
+            Regex regex = new(
+            @"(?:.method)\s{1,}(call::local|call|create|overwrite).{1,}");
+            Match match = regex.Match(code);
+            string[] j = code.Split("\n")[0].Split(" ");
+            for (int i = 0; i < j.Length; i++)
+            {
+                j[i] = j[i] + " ";
+            }
+            for (int i = 0; i < j.Length; i++)
+            {
+                j[i] = j[i].Replace(".method ", null);
+
+                break;
+            }
+            code = "";
+            foreach (string item in j)
+            {
+                code += item;
+            }
+            code = code.Replace("*34M#9823", "\n");
+            if (match.Success)
+            {
+                switch (match.Groups[1].Value)
+                {
+                    case "call":
+
+                        code = code.Replace(".method", "");
+                        CallMethod(code);
+                        break;
+                    case "if":
+                        _ = ConditionsHandler.Run(code.Remove(code.IndexOf("if"), "if".Length).Trim().TrimStart().TrimEnd());
+                        break;
+                    case "call::local":
+                        CallLocal(code);
+                        break;
+                    case "create":
+                        CreateMethod(code);
+                        break;
+                    case "overwrite":
+                        OverWriteMethod(code);
+                        break;
+                    default:
+                        ErrorHandler.Send(code, match.Groups[1].Value + " instruction");
+                        break;
+                }
+            }
+            else
+            {
+                ErrorHandler.Send(code, "invaild Method syntax");
+            }
+        }
+        public static List<Function> LocalFuntions = [];
+        private static void CallLocal(string code)
+        {
+            Regex regex = new(@"\s*call::local\s+(\w+)\s*\(.*\)");
+            Match match = regex.Match(code);
+            if (match.Success)
+            {
+                int currentcount = 0;
+                List<dynamic> SendPerms = [];
+
+                MatchCollection Perms = Regex.Matches(Regex.Match(code, @"\((.*)\)").Groups[1].Value, $@"(Array::)?({StringHelper.AllTypes})\s{{0,}}(->|<-)\s{{0,}}([\w\d\s\+\-]{{1,}}([[]\d+[]])?)(::)?(?>\w{{0,}}),?");
+                if(Perms.Count>0)
+                {
+                    if (Perms.Count > 0)
+                    {
+
+
+                        dynamic value = "";
+                        for (int i = 0; i < Perms.Count; i++)
+                        {
+                            if (Perms[i].Groups[1].Value != "Array::")
+                            {
+                                ValueType_Get_Set(i);
+                            }
+                            void ValueType_Get_Set(int where)
+                            {
+                                Regex NestedValue = new($@"\s*({StringHelper.AllTypes})\s*<-\s*([\w\d\S]*)\.([\w\d\S]*)!extern");
+                                Match NestedValue_match = NestedValue.Match(code);
+                                if (NestedValue_match.Success)
+                                {
+
+                                    if (NestedValue_match.Success)
+                                    {
+                                        value = ValueHandler.Run(NestedValue_match.Groups[2].Value + " <- " + NestedValue_match.Groups[3].Value.Trim() + "." + NestedValue_match.Groups[3].Value.Trim());
+
+                                    }
+                                    else
+                                    {
+                                        ErrorHandler.Send(code, "Invalid Identifier Error.The provided code does not match the expected syntax for assignments or access operations.");
+                                    }
+                                }
+                                else
+                                {
+                                    Regex _regex = new(@"""([^""""]*)""");
+                                    Match _match = _regex.Match(Perms[where].Groups[4].Value);
+                                    Regex _regex2 = new(@"(.*)\)");
+                                    Match _match2 = _regex2.Match(Perms[where].Groups[4].Value);
+                                    value = Perms[where].Groups[3].Value == "<-"
+                                   ? ValueHandler.Run($"{Perms[where].Groups[2].Value} {Perms[where].Groups[3].Value} {(_match2.Success ? _match2.Groups[1].Value : Perms[where].Groups[4].Value)}")
+                                   : _match.Success ? _match.Groups[^1].Value : Perms[where].Groups[4].Value;
+                                }
+                            }
+                            if (Perms[i].Groups[1].Value == "Array::")
+                            {
+
+                                List<object> Arrays = [];
+                                for (int s = i; s < Perms.Count; s++)
+                                {
+                                    ValueType_Get_Set(s);
+                                    if (Perms[s].Groups[5].Value == "::")
+                                    {
+                                        Arrays.Add(Convertor.GetType(Perms[s].Groups[2].Value, value));
+                                        SendPerms.Add(Convertor.ConvertToArrayType(Perms[s].Groups[2].Value, Arrays.ToArray()));
+
+                                        i += Arrays.Count - 1;
+                                        Arrays = [];
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        Arrays.Add(value.GetType() == typeof(int[]) ? value : Convertor.GetType(Perms[s].Groups[2].Value, value));
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    SendPerms.Add(value.GetType() == typeof(int[]) ? value : Convertor.GetType(Perms[i].Groups[2].Value, value));
+                                }
+                                catch (Exception ex)
+                                {
+                                    ErrorHandler.Send(code, ex.Message);
+
+                                }
+                            }
+                        }
+
+                    }
+                }
+                Function? LocalFunction = LocalFuntions.FirstOrDefault(x => x.FunctionName == match.Groups[1].Value
+                && x.ParametersCount == Perms.Count && x.ParametersInformation.TrueForAll(pinfo =>
+                {
+                    if(pinfo.Type != Perms[currentcount].Groups[2].Value)
+                    {
+                        return false;
+                    }
+                    currentcount++;
+                    return true;
+                }));
+                if (LocalFunction != null)
+                {
+                    string RandomIDname()
+                    {
+                        var _ = "";
+                        for (int i = 0; i < 10; i++)
+                        {
+                            _ += "1234567890AB234823943"[new Random().Next(0, "1234567890AB234823943".Length - 1)];
+                        }
+                        return _!;
+                    }
+                    List<(string permName,string id)> LPreturnId = [];
+                    for (int i = 0; i < LocalFunction.ParametersCount; i++)
+                    {
+                        var id ="A"+ RandomIDname();
+                        LPreturnId.Add((LocalFunction.ParametersInformation[i].Name, id));
+                        ValueHandler.Run($"{LocalFunction.ParametersInformation[i].Type} {id} = {SendPerms[i]}");
+                    }
+                    string oldCode = LocalFunction.Code;
+                    var Per_ = Regex.Matches(LocalFunction.Code, $@"({StringHelper.AllTypes})\s*(\W[\W\w\d\D]*)\s*=\s*(.*)");
+                    foreach (Match item in Per_)
+                    {
+                        LocalFunction.Code = LocalFunction.Code.Replace(item.Groups[0].Value, $"{item.Groups[1].Value} {LPreturnId.FirstOrDefault(x=>x.permName == item.Groups[2].Value).id.Trim()} = {item.Groups[3].Value}");
+                    }
+                    Per_ = Regex.Matches(LocalFunction.Code, $@"({StringHelper.AllTypes})\s*<-\s*([\w]*)");
+                    
+                    foreach (Match item in Per_)
+                    {
+                        LocalFunction.Code = LocalFunction.Code.Replace(item.Groups[0].Value, $"{item.Groups[1].Value} <- {LPreturnId.FirstOrDefault(x => x.permName.Trim() == item.Groups[2].Value.Trim()).id}");
+                    }
+                    string _ = null!;
+                    foreach (var item in LocalFunction.Code.Split("\n"))
+                    {
+                        if (item != ""&&item!="\r" && item != "\r\n")
+                        {
+                            _+= item + "\n";
+                        }
+                    }
+                    Lexer.Run(_.TrimEnd(), true);
+                    LocalFunction.Code = oldCode;
+                }
+                else
+                {
+                    currentcount = 0;
+                    if(!LocalFuntions.Any(x=>x.FunctionName == match.Groups[1].Value))
+                    {
+                        ErrorHandler.Send(match.Groups[0].Value, "Function as not be decleared;");
+                    }
+                    else if(!LocalFuntions.Any(x=>x.FunctionName == match.Groups[1].Value && x.ParametersCount == Perms.Count))
+                    {
+                        ErrorHandler.Send(match.Groups[0].Value, "Function as not be decleared;Parameters Count not match.");
+                    }
+                    else if(!LocalFuntions.Any(x=>x.FunctionName == match.Groups[1].Value &&
+                    x.ParametersCount == Perms.Count && x.ParametersInformation.TrueForAll(pinfo => {
+                        if (Perms[currentcount].Groups[1].Value != pinfo.Type)
+                        {
+                            return false;
+                        }
+                        currentcount++;
+                        return true;
+                    })))
+                    {
+                        ErrorHandler.Send(match.Groups[0].Value, "No function match this Parameter's");
+                    }
+                }
+            }
+        }
+        private static void OverWriteMethod(string code)
+        {
+            Regex regex = new(@"\s*overwrite\s*create\s+(.+)\(\)\s*\{\s*([\s\S]*?)\s*\}");
+
+            Match match = regex.Match(code);
+            if (match.Success)
+            {
+                Function? LocalFunction = LocalFuntions.FirstOrDefault(x => x.FunctionName == match.Groups[1].Value);
+                if (LocalFunction != null)
+                {
+
+                    LocalFunction.Code = match.Groups[2].Value;
+                }
+                else
+                {
+                    ErrorHandler.Send(match.Groups[0].Value, "Function as not be decleared;overwrite can't be use.");
+                }
+            }
+        }
+        private static void CreateMethod(string code)
+        {
+
+            Regex regex = new(@"\s*create\s+(\w+\d*)\s*\(.*\)\s*:\s*(Auto|[\d]*)\s*\{([\n\s\w\d\S\s]*)\}");
+            Match match = regex.Match(code);
+            if (match.Success is true)
+            {
+              
+                MatchCollection Perms = Regex.Matches(Regex.Match(code, @"\((.*)\)").Groups[1].Value, $@"\s*({StringHelper.AllTypes})\s+(\W*\w*)\s*");
+              
+                List<(string type,string name)> ThisMethodPermInfo = new();
+               
+
+                if (match.Groups[2].Value != "Auto" && !uint.TryParse(match.Groups[2].Value, out _))
+                {
+                    ErrorHandler.Send(code, "Invalid Parameters Count");
+                }
+                if (Perms.Count > 0)
+                {
+                    
+
+                    dynamic value = "";
+                    for (int i = 0; i < (match.Groups[2].Value == "Auto" ? Perms.Count : int.Parse(match.Groups[2].Value)); i++)
+                    {
+                        if (Perms[i].Groups[1].Value == "Array::")
+                        {
+                            ErrorHandler.Send(code, "Array Type not allowed in method parameters");
+                        }
+                        if (i > Perms.Count && match.Groups[2].Value == "Auto")
+                        {
+                            break;
+                        }
+                        else if (i > Perms.Count)
+                        {
+                            ErrorHandler.Send(code, "OutofIndex Parameters/invaild type");
+                        }
+                        if (ThisMethodPermInfo.Any(x => x.name == Perms[i].Groups[2].Value))
+                        { 
+                            ErrorHandler.Send(code, "Duplicate Parameters name");
+                        }
+                        if (Regex.Match(Perms[i].Groups[2].Value,StringHelper.AllTypes).Success)
+                        {
+                            ErrorHandler.Send(code, "Invalid Parameters Name.Parameters Name cannot be a type name.");
+                        }
+
+                        
+                        (string type, string name) Info= (Perms[i].Groups[1].Value, Perms[i].Groups[2].Value);
+                        ThisMethodPermInfo.Add(Info);
+                    }
+
+                }
+                else if (Regex.Match(code, @"\(.+\)\:").Success)
+                {
+                    ErrorHandler.Send(code, "Invalid Parameters");
+                }
+         
+                int currentcount = 0;
+                if (LocalFuntions.Any(x => x.FunctionName == match.Groups[1].Value &&
+                x.ParametersCount == (match.Groups[2].Value == "Auto" ? Perms.Count:uint.Parse(match.Groups[2].Value))&&
+                x.ParametersInformation.TrueForAll(PInfo =>
+                {
+                    if (ThisMethodPermInfo[currentcount].type != PInfo.Type)
+                    {
+                        return false;
+                    }
+                    currentcount++;
+                    return true;
+                })))
+                {
+                    ErrorHandler.Send(code, "Function Already decleared.use overwrite keyword instead.");
+                }
+                LocalFuntions.Add(new Function()
+                {
+                    FunctionName = match.Groups[1].Value,
+                    ParametersCount = match.Groups[2].Value == "Auto" ? (uint)Perms.Count : uint.Parse(match.Groups[2].Value),
+                    ParametersInformation = ThisMethodPermInfo,
+                    Code = match.Groups[3].Value,
+                });
+            }
+            else
+            {
+                ErrorHandler.Send(code, "invaild Function syntax.");
+            }
+        }
+        private static void CallMethod(string code)
+        {
+            Regex regex = new(@"^(call)\s+\[([^\]]+)\](([\w\.]+))\.(\w+)");
+            Match match = regex.Match(code);
+            if (match.Success)
+            {
+                Type helper = GetTypeFromInput(match.Value.Remove(match.Value.IndexOf("call"), "call".Length).Trim());
+                bool MethodExsit = helper != null;
+
+                if (MethodExsit)
+                {
+
+                    // replace the = by = L // hi
+                    //MatchCollection Perms = Regex.Matches(code, $@"(Array::)?({StringHelper.AllTypes})\s{{0,}}(->|<-)\s{{0,}}(""[^""]*""|[^\)[\]]+)\s*(::)?\s*(?>\w{{0,}}),?\s*");
+                    MatchCollection Perms = Regex.Matches(code, $@"(Array::)?({StringHelper.AllTypes})\s{{0,}}(->|<-)\s{{0,}}([\w\d\s\+\-]{{1,}}([[]\d+[]])?)(::)?(?>\w{{0,}}),?");
+                    string methodName = new Regex(@"\.(\w+)\s*\(").Match(code).Groups[1].Value.Trim(); // Extract method name from input
+                    int currentcount = 0;
+                    MethodInfo? TheMethod = helper!.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+                        .FirstOrDefault(x => x.Name == methodName && x.GetParameters().Length == Perms.Count &&
+                            x.GetParameters().ToList().TrueForAll(param =>
+                            {
+
+                                if (!Perms[currentcount].Groups[2].Value.ToLower().Contains(param.ParameterType.Name.ToLower()))
+                                {
+
+                                    return false;
+                                }
+                                currentcount++;
+                                return true;
+                            }));
+                    if (TheMethod == null)
+                    {
+                        TheMethod = helper.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+      .FirstOrDefault(x => x.Name == methodName && x.GetParameters().Length == Perms.Count &&
+          x.GetParameters().Select((param, index) => param.ParameterType.FullName.ToLower().Contains(Perms[index].Groups[2].Value.ToLower()))
+          .All(match => match));
+                    }
+                    if (TheMethod == null)
+                    {
+                        ErrorHandler.Send(code, "Unable to Find Method");
+                    }
+                    List<dynamic> SendPerms = [];
+
+
+                    if (Perms.Count > 0)
+                    {
+
+
+                        dynamic value = "";
+                        for (int i = 0; i < Perms.Count; i++)
+                        {
+                            if (Perms[i].Groups[1].Value != "Array::")
+                            {
+                                ValueType_Get_Set(i);
+                            }
+                            void ValueType_Get_Set(int where)
+                            {
+                                Regex NestedValue = new($@"\s*({StringHelper.AllTypes})\s*<-\s*([\w\d\S]*)\.([\w\d\S]*)!extern");
+                                Match NestedValue_match = NestedValue.Match(code);
+                                if (NestedValue_match.Success)
+                                {
+
+                                    if (NestedValue_match.Success)
+                                    {
+                                        value = ValueHandler.Run(NestedValue_match.Groups[1].Value + " <- " + NestedValue_match.Groups[2].Value.Trim() + "." + NestedValue_match.Groups[3].Value.Trim());
+
+                                    }
+                                    else
+                                    {
+                                        ErrorHandler.Send(code, "Invalid Identifier Error.The provided code does not match the expected syntax for assignments or access operations.");
+                                    }
+                                }
+                                else
+                                {
+                                    Regex _regex = new(@"""([^""""]*)""");
+                                    Match _match = _regex.Match(Perms[where].Groups[4].Value);
+                                    Regex _regex2 = new(@"(.*)\)");
+                                    Match _match2 = _regex2.Match(Perms[where].Groups[4].Value);
+                                    value = Perms[where].Groups[3].Value == "<-"
+                                   ? ValueHandler.Run($"{Perms[where].Groups[2].Value} {Perms[where].Groups[3].Value} {(_match2.Success ? _match2.Groups[1].Value : Perms[where].Groups[4].Value)}")
+                                   : _match.Success ? _match.Groups[^1].Value : Perms[where].Groups[4].Value;
+                                }
+                            }
+                            if (Perms[i].Groups[1].Value == "Array::")
+                            {
+
+                                Type? objectType = TheMethod?.GetParameters()[i]?.GetType();
+                                List<object> Arrays = [];
+                                for (int s = i; s < Perms.Count; s++)
+                                {
+                                    ValueType_Get_Set(s);
+                                    if (Perms[s].Groups[5].Value == "::")
+                                    {
+                                        Arrays.Add(Convertor.GetType(Perms[s].Groups[2].Value, value));
+                                        SendPerms.Add(Convertor.ConvertToArrayType(Perms[s].Groups[2].Value, Arrays.ToArray()));
+
+                                        i += Arrays.Count - 1;
+                                        Arrays = [];
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        Arrays.Add(value.GetType() == typeof(int[]) ? value : Convertor.GetType(Perms[s].Groups[2].Value, value));
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    SendPerms.Add(value.GetType() == typeof(int[]) ? value : Convertor.GetType(Perms[i].Groups[2].Value, value));
+                                }
+                                catch (Exception ex)
+                                {
+                                    ErrorHandler.Send(code, ex.Message);
+
+                                }
+                            }
+                        }
+
+                    }
+
+                    try
+                    {
+                        dynamic? @return = default;
+                        try
+                        {
+                            @return = TheMethod.IsStatic ? TheMethod.Invoke(null, SendPerms.ToArray()) : TheMethod.Invoke(Activator.CreateInstance(helper), SendPerms.ToArray());
+                        }
+                        catch { }
+                        if (@return != null)
+                        {
+                            if (TheMethod.ReturnType == typeof(string))
+                            {
+                                ValueHandler.Run($"string lpreturn = {@return}");
+                            }
+                            else
+                            {
+                                ValueHandler.Run($"{(StringHelper.AllTypes.Contains(TheMethod?.ReturnType.Name) ? TheMethod.ReturnType : "object")} lpreturn = {@return}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Message : " + ex.Message);
+                        Console.WriteLine($"Source : " + ex.Source);
+                        Console.WriteLine($"StackTrace : " + ex.StackTrace);
+                        Console.WriteLine($"Data : " + ex.Data);
+
+                    }
+                }
+                else
+                {
+                    ErrorHandler.Send(code, "Unable to Find Method");
+                }
+            }
+            else
+            {
+                ErrorHandler.Send(code, "Invalid Instruction");
+            }
+
+        }
+        public static Type GetTypeFromInput(string input)
+        {
+
+            Match dllimport_match = Regex.Match(input, "^\\[!dll:([^\\]]+)]([\\w\\.]+)\\.\\w+$");
+            Match match = Regex.Match(input, @"^\[([^\]]+)]([\w\.]+)\.\w+$");
+            //make this also take the last \\dll* the regex  new regex code will be \[!dll:([^\\]]+)](\w+)\.\w+$
+            if (dllimport_match.Success)
+            {
+                //give me code
+                //it will have to load the dll(.dll) and get the type from the dll
+                string dll = dllimport_match.Groups[1].Value;
+                string type = dllimport_match.Groups[2].Value;
+                dllimport_match = Regex.Match(dll, @"([^\\\/]+$)");
+                Assembly assembly = Assembly.LoadFrom(dll + ".dll");
+                Type foundType = assembly.GetType(dllimport_match.Groups[1].Value + "." + type);
+                return foundType ?? throw new InvalidOperationException($"Type '{type}' not found in '{dll}'");
+
+
+            }
+
+            else
+            {
+                string namespaceName = match.Groups[1].Value;
+                string typeName = match.Groups[2].Value;
+                string fullTypeName = $"{namespaceName}.{typeName}";
+                Stopwatch stopwatch = new();
+                
+                Type foundType = Type.GetType(fullTypeName) ??
+                                 AppDomain.CurrentDomain.GetAssemblies()
+                                          .SelectMany(a => a.GetTypes())
+                                          .FirstOrDefault(t => t.FullName?.Equals(fullTypeName, StringComparison.Ordinal) == true);
+
+                return foundType ?? throw new InvalidOperationException($"Type '{fullTypeName}' not found.");
+            }
+
+
+        }
+
+
+    }
+}
+
+
+// ===== FILE: OpratorHandler.cs =====
+using System.Text.RegularExpressions;
+
+namespace Lexer
+{
+    public static class OperatorHandler
+    {
+        public static object Run(string code)
+        {
+            string[] parts = Regex.Split(code, $@"\s*({StringHelper.AllOperations})\s*");
+            object? result = null;
+            for (int i = 0; i < parts.Length; i++)
+            {
+
+            }
+
+            return result;
+        }
+    }
+}
+
+
+// ===== FILE: StringHelper.cs =====
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace Lexer
+{
+    public sealed unsafe class StringHelper
+    {
+        [DllImport("Ole32.dll")]
+        public static extern IntPtr CoTaskMemAlloc(int size);
+
+        [DllImport("Ole32.dll")]
+        public static extern void CoTaskMemFree(IntPtr ptr);
+
+        public static IntPtr AllocString(string value)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                IntPtr Address = CoTaskMemAlloc(value.Length);
+                for (int i = 0; i < value.Length; i++)
+                {
+                    *(char*)(Address + i) = value[i];
+                }
+
+                return Address;
+            }
+            else
+            {
+                return CustomAllocString(value);
+            }
+        }
+
+        private static IntPtr CustomAllocString(string value)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(value);
+            IntPtr ptr = Marshal.AllocHGlobal(bytes.Length + 1);
+            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+            Marshal.WriteByte(ptr + bytes.Length, 0);
+            return ptr;
+        }
+
+        public static void FreeString(IntPtr ptr)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                CoTaskMemFree(ptr);
+            }
+            else
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        public static string AllTypes = @"string|int32|int64|uint32|extern!|uint64|nint|IntPtr|double|bool|byte|char|datetime|decimal|float|sbyte|short|ushort|object|int32::|string\*|int32\*|double\*";
+        public static string AllOperations = "-|\\|*|%";
+
+        public static string GetString(long address)
+        {
+            List<byte> bytes = [];
+            while (*(byte*)address != 0)
+            {
+                bytes.Add(*(byte*)address);
+                address++;
+            }
+            return Encoding.ASCII.GetString(bytes.ToArray());
+        }
+    }
+}
+
+
+// ===== FILE: ValueHandler.cs =====
+using System.Text.RegularExpressions;
+
+namespace Lexer
+{
+    public static class ValueHandler
+    {
+        public static dynamic Run(string code)
+        {
+            Regex regex = new($@"(Add|Sub)\s+({StringHelper.AllTypes})<-\s*(\w+\d*)\s+(\w+\d*|\w*\d*|\""(.*)"")");
+            Match match  = regex.Match(code);
+            if (match.Success)
+            {
+
+                Operation(code);
+            }
+
+            else
+            {
+                regex = new($@".*(=|<-).*");
+                match = regex.Match(code.Split('\n')[0]);
+                if (match.Success)
+                {
+                    switch (match.Groups[1].Value)
+                    {
+                        case "=":
+                            SetValue(code);
+                            break;
+
+                        case "<-":
+                            return GetValue(code);
+
+
+                        default:
+                            string identifier = code.Split(' ')[0];
+                            ErrorHandler.Send(message: $"{identifier} Error", reason: $"{identifier} is not a valid name/type in this context. Please check for typos or refer to the documentation for allowed identifiers.");
+
+                            break;
+                    }
+                }
+
+                else
+                {
+                    ErrorHandler.Send(message: code.Split(' ')[0], reason: "(Syntax Error)The provided code does not match the expected syntax for assignments or access operations.");
+                }
+
+
+            }
+            return null!;
+
+        }
+        private static void Operation(string code)
+        {
+            Regex regex = new($@"(Add|Sub)\s+({StringHelper.AllTypes})<-\s*(\w+\d*)\s+(\w+\d*|\w*\d*|\""(.*)"")");
+            Match match = regex.Match(code);
+            if (MemoryHandler.Memorys.ContainsKey(match.Groups[3].Value.Trim()))
+            {
+                if (match.Groups[1].Value == "Add")
+                {
+                    if (match.Groups[2].Value.Trim()=="string")
+                    {
+
+                        var Value = GetValue($"{match.Groups[2].Value} <- {match.Groups[3].Value}");
+                        MemoryHandler.Memorys[match.Groups[3].Value.Trim()] =Value+ Convertor.GetType(match.Groups[2].Value, match.Groups[5].Value);
+                    }
+                    else
+                    {
+                        MemoryHandler.Memorys[match.Groups[3].Value.Trim()] += Convertor.GetType(match.Groups[2].Value, match.Groups[4].Value);
+                    }
+                 
+                }
+                if (match.Groups[1].Value == "Sub")
+                {
+                    if (match.Groups[2].Value.Trim() != "string")
+                    {
+                        var Value = GetValue($"{match.Groups[2].Value} <- {match.Groups[3].Value}");
+                        MemoryHandler.Memorys[match.Groups[3].Value.Trim()] -= Convertor.GetType(match.Groups[2].Value, match.Groups[4].Value);
+                    }
+                    else
+                    {
+                        ErrorHandler.Send(match.Groups[2].Value, "Invalid Operation Error. The operation 'Sub' is not supported for the type 'string'.");
+                    }
+                }
+            }
+            else
+            {
+                ErrorHandler.Send(code, "Undefined Identifier Error.The provided code does not match the expected syntax for assignments or access operations.");
+            }
+        }
+        private static void SetValue(string code)
+        {
+            
+
+            Regex regex = new($@"\s{{0,}}({StringHelper.AllTypes})\s{{1,}}(\D{{1,}}\w{{0,}})\s{{0,}}=\s{{0,}}([\w\d\D\d]{{0,}})\s{{0,}}");
+            Match match = regex.Match(code);
+            if (code.Contains("=") && code.Contains("[") && code.Contains("]"))
+            {
+
+                Regex arrayRegex = new($@"\s*({StringHelper.AllTypes})\s+(\w+)\s*=\s*\s*(\[.*\])\s*\s*");
+                Match arrayMatch = arrayRegex.Match(code);
+                if (arrayMatch.Success)
+                {
+
+                    string type = arrayMatch.Groups[1].Value;
+                    string identifier = arrayMatch.Groups[2].Value;
+                    string value = arrayMatch.Groups[3].Value;
+                    string[] elements = value.TrimStart('[').TrimEnd(']').Split(',');
+                    for (int i = 0; i < elements.Length; i++)
+                    {
+                        Regex _regex = new(@"""([^""""]*)""");
+                        Match _match = _regex.Match(elements[i]);
+                        if (_match.Success)
+                        {
+                            elements[i] = _match.Groups[1].Value;
+                        }
+
+                        if (MemoryHandler.Memorys.ContainsKey(elements[i]))
+                        {
+                            if (elements[i].GetType() == typeof(string) && elements[i].GetType() != typeof(int))
+                            {
+                                try
+                                {
+                                    elements[i] = StringHelper.GetString((IntPtr)MemoryHandler.Memorys[elements[i]]);
+                                }
+                                catch
+                                {
+                                    //Meaning the value is not a pointer
+
+                                    elements[i] = Convertor.GetType("string", MemoryHandler.Memorys[elements[i]]);
+                                }
+                            }
+                            else
+                            {
+                                elements[i] = Convertor.GetType("string", MemoryHandler.Memorys[elements[i]]);
+                            }
+                        }
+                    }
+
+                    dynamic[] convertedElements = elements.Select(el => Convertor.GetType(type, el)).ToArray();
+
+                    MemoryHandler.Memorys[identifier] = convertedElements;
+                    return;
+                }
+                regex = new Regex($@"\s*({StringHelper.AllTypes})\s+(\w+)\s*=\s*(\w+)[[](\d+)[]]");
+                arrayMatch = regex.Match(code);
+                if (arrayMatch.Success)
+                {
+
+
+                    object GetValue = ((object[])MemoryHandler.Memorys[arrayMatch.Groups[3].Value])[Convertor.GetType("int32", arrayMatch.Groups[4].Value)];
+                    GetValue = arrayMatch.Groups[1].Value == "string" ? "\"" + GetValue + "\"" : GetValue;
+                    SetValue($"{arrayMatch.Groups[1].Value} {arrayMatch.Groups[2].Value}={GetValue}");
+
+                }
+            }
+            Regex NestedValue = new($@"\s*({StringHelper.AllTypes})\s*(\w+\d*)\s*(->|=)\s*(.*)\.(.*)!extern");
+            Match NestedValue_match = NestedValue.Match(code);
+
+            if (NestedValue_match.Success)
+            {
+                bool isNotADirectValue = false;
+                string ScopeCreatedValueName = "";
+                if (!MemoryHandler.Memorys.ContainsKey(NestedValue_match.Groups[2].Value.Trim().Replace(" ", null)))
+                {
+                    SetValue($"{NestedValue_match.Groups[1].Value} {NestedValue_match.Groups[2].Value} = 0 ");
+                }
+                dynamic? Value = default;
+                if (NestedValue_match.Groups[0].Value.Contains("->"))
+                {
+                    Regex Regex = new($"\\s*({StringHelper.AllTypes})\\s*->\\s*([\\w\\d\\S]*)");
+                    var  m = Regex.Match(NestedValue_match.Groups[4].Value.Trim());
+                    if (m.Success)
+                    {
+                        string RandomIDname()
+                        {
+                            var _ = "";
+                            for (int i = 0; i < 10; i++)
+                            {
+                                _ += "1234567890AB234823943"[new Random().Next(0, "1234567890AB234823943".Length - 1)];
+                            }
+                            return _!;
+                        }
+                        //isstring
+                        Regex _regex = new(@"""([^""""]*)""");
+                        Match _match = _regex.Match(match.Groups[3].Value);
+                        //end
+                        ScopeCreatedValueName = m.Groups[2].Value + RandomIDname();
+                        SetValue($"{m.Groups[1].Value} {ScopeCreatedValueName.Trim()} = {(_match.Success ? _match.Groups[1].Value : m.Groups[2].Value)} ");
+                        isNotADirectValue = true;
+                    }
+                    else
+                    {
+
+
+                        ErrorHandler.Send(message: "invaild tokens", NestedValue_match.Groups[4].Value.Trim());
+                    }
+
+                }
+                void RemoveKey()
+                {
+                    if (MemoryHandler.Memorys.ContainsKey(ScopeCreatedValueName))
+                    {
+                        _ = MemoryHandler.Memorys.Remove(ScopeCreatedValueName);
+                    }
+                }
+                Value = GetValue("object <- " + (isNotADirectValue ? ScopeCreatedValueName : NestedValue_match.Groups[4].Value.Trim()));
+
+                if (NestedValue_match.Groups[5].Value.Trim().EndsWith("()"))
+                {
+                    string methodName = NestedValue_match.Groups[5].Value.Trim().TrimEnd('(', ')');
+                    dynamic? method = Value?.GetType().GetMethod(methodName, Type.EmptyTypes);
+
+                    if (method != null)
+                    {
+                        SetValue($"{NestedValue_match.Groups[1].Value} {NestedValue_match.Groups[2].Value} = {method.Invoke(Value, null)}");
+                        RemoveKey();
+                        return;
+                    }
+                    else
+                    {
+                        ErrorHandler.Send(methodName, $"The method '{methodName}' does not exist in the type '{Value?.GetType().Name}'.");
+                        RemoveKey();
+                        return;
+                    }
+                }
+                else
+                {
+                    dynamic? property = Value?.GetType().GetProperty(NestedValue_match.Groups[5].Value.Trim());
+                    if (property != null)
+                    {
+                        SetValue($"{NestedValue_match.Groups[1].Value} {NestedValue_match.Groups[2].Value} = {property.GetValue(Value, null)}");
+                        RemoveKey();
+                        return;
+                    }
+                }
+            }
+            else if (match.Success)
+            {
+                if (!MemoryHandler.Memorys.ContainsKey(match.Groups[2].Value.Trim().Replace(" ", null)))
+                {
+
+                    if (MemoryHandler.Memorys.ContainsKey(match.Groups[2].Value.Trim()))
+                    {
+                        Regex _regex = new(@"""([^""""]*)""");
+                        Match _match = _regex.Match(match.Groups[3].Value);
+                        if (match.Groups[1].Value == "string")
+                        {
+                            try
+                            {
+
+                                MemoryHandler.Memorys.Add(match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd(), StringHelper.AllocString(StringHelper.GetString((IntPtr)MemoryHandler.Memorys[match.Groups[3].Value.Trim()])));
+                                return;
+                            }
+                            catch
+                            {
+
+                                MemoryHandler.Memorys.Add(match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd(), StringHelper.AllocString(Convert.ToString(_match.Success ? _match.Groups[1].Value : MemoryHandler.Memorys[match.Groups[3].Value.Trim()])));
+                                return;
+                            }
+                            finally
+                            {
+
+                            }
+                        }
+
+                        MemoryHandler.Memorys.Add(match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd(), _match.Success ? _match.Groups[1].Value : MemoryHandler.Memorys[match.Groups[3].Value.Trim()]);
+                        return;
+                    }
+
+                    if (match.Groups[1].Value == "string")
+                    {
+                        Regex _regex = new(@"""([^""""]*)""");
+                        Match _match = _regex.Match(match.Groups[3].Value);
+                        if (_match.Success)
+                        {
+                            MemoryHandler.Memorys.Add(match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd(), StringHelper.AllocString(_match.Groups[1].Value));
+
+                        }
+                        else
+                        {
+                            MemoryHandler.Memorys.Add(match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd(), StringHelper.AllocString(match.Groups[3].Value));
+
+                        }
+
+
+                    }
+                    else
+                    {
+                        MemoryHandler.Memorys.Add(match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd(), Convertor.GetType(match.Groups[1].Value, match.Groups[3].Value));
+                    }
+                }
+
+                else
+                {
+                    Regex _regex = new(@"""([^""""]*)""");
+                    Match _match = _regex.Match(match.Groups[3].Value);
+
+
+
+                    MemoryHandler.Memorys[match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd()] = match.Groups[1].Value == "string"
+                        ? StringHelper.AllocString(_match.Success ? _match.Groups[3].Value : match.Groups[3].Value)
+                        : (object)Convertor.GetType(match.Groups[1].Value.Replace(" ", null).Trim().TrimEnd(), match.Groups[3].Value.Replace(" ", null).Trim().TrimEnd());
+                }
+
+            }
+
+        }
+        private static object? GetValue(string code)
+        {
+            code = code.Replace("::", null);
+            Regex regex = new($@"\s{{0,}}({StringHelper.AllTypes})\s*<-\s*(\D+\w*)(.*)*\s*");
+            Match match = regex.Match(code);
+            if (code.Contains("[") && code.Contains("]"))
+            {
+                regex = new Regex($@"\s{{0,}}({StringHelper.AllTypes})\s{{0,}}<-\s*(\w+)((?:[[])\d+(?:[]]))");
+                match = regex.Match(code);
+                if (match.Success)
+                {
+                    int index = Convertor.GetType("int32", match.Groups[3].Value.Replace("[", null).Replace("]", null));
+                    object[] Array = (object[])Convertor.ConvertToArrayType(match.Groups[1].Value, GetValue($"{match.Groups[1].Value} <-{match.Groups[2].Value}") as object[]);
+                    dynamic? Value = default;
+                    Value = ((object[])Convertor.ConvertToArrayType(match.Groups[1].Value, Array))[index];
+
+                    return Value;
+
+                }
+            }
+            Regex NestedValue = new($@"\s*({StringHelper.AllTypes})\s*(->|<-)\s*([\w\d\S]*)\.([\w\d\S]*)");
+            Match NestedValue_match = NestedValue.Match(code.Replace("!extern", " "));
+            if (NestedValue_match.Success)
+            {
+
+                if (NestedValue_match.Success)
+                {
+                    dynamic? Value = default;
+                    if (NestedValue_match.Groups[2].Value == "<-")
+                    {
+                        Value = GetValue(NestedValue_match.Groups[1].Value + " <- " + NestedValue_match.Groups[3].Value.Trim());
+                    }
+                    else
+                    {
+                        //string start
+                        Regex _regex = new(@"""([^""""]*)""");
+                        Match _match = _regex.Match(match.Groups[3].Value);
+                        //is string end
+                        Value = Convertor.GetType(NestedValue_match.Groups[1].Value, _match.Success ? _match.Groups[1].Value : NestedValue_match.Groups[3].Value);
+                    }
+
+                    if (NestedValue_match.Groups[4].Value.Trim().EndsWith("()"))
+                    {
+                        string methodName = NestedValue_match.Groups[4].Value.Trim().TrimEnd('(', ')');
+
+
+                        dynamic? method = Value?.GetType().GetMethod(methodName, Type.EmptyTypes);
+
+
+                        if (method != null)
+                        {
+                            return method.Invoke(Value, null);
+
+                        }
+                        else
+                        {
+                            ErrorHandler.Send(methodName, $"The method '{methodName}' does not exist in the type '{Value?.GetType().Name}'.");
+                        }
+                    }
+                    else
+                    {
+                        return Value?.GetType().GetProperty(NestedValue_match.Groups[4].Value.Trim())?.GetValue(Value);
+                    }
+
+
+                }
+                else
+                {
+
+                    ErrorHandler.Send(code, "Invalid Identifier Error.The provided code does not match the expected syntax for assignments or access operations.");
+                }
+            }
+            else if (match.Success)
+            {
+                if (MemoryHandler.Memorys.Any(x => x.Key == match.Groups[2].Value.Trim()))
+                {
+                    if (match.Groups[1].Value == "string")
+                    {
+                        dynamic m = MemoryHandler.Memorys.First(x => x.Key == match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd()).Value;
+                        try
+                        {
+                            string text = StringHelper.GetString(((IntPtr)m).ToInt64());
+                            return text;
+
+                        }
+                        catch { return m; }
+                    }
+                    else if (match.Groups[1].Value.Contains("*"))
+                    {
+                        dynamic m = MemoryHandler.Memorys.First(x => x.Key == match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd()).Value;
+                        unsafe
+                        {
+                            return (long)&m;
+                        }
+                    }
+
+                    else
+                    {
+                        dynamic @return = Convertor.GetType(match.Groups[1].Value.Replace(" ", null).Trim().TrimEnd(), MemoryHandler.Memorys[match.Groups[2].Value.Replace(" ", null).Trim().TrimEnd()]);
+                        if (@return.GetType() == typeof(double[]))
+                        {
+                            @return = Convertor.ConvertToArrayType("object", @return as object[]);
+                        }
+
+                        return @return;
+                    }
+                }
+                else
+                {
+                    ErrorHandler.Send(message: "Undefined Identifier Error", reason: $"The identifier '{match.Groups[2].Value}' has not been declared or initialized. Please ensure that '{match.Groups[2].Value}' is declared before it is used.");
+                }
+            }
+
+            else
+            {
+                ErrorHandler.Send(message: "Update Mismatch Error", reason: $"The update operation '{match.Groups[2].Value}' does not match expected patterns or types. Ensure the operation and value types are correct and compatible.");
+            }
+
+            return 0;
+        }
+    }
+}
+
+// ===== FILE: Program.cs =====
+using System;
+
+namespace test
+{
+    public class Program
+    {
+        static void Main(string arg)
+        {
+          
+            Lexer.Lexer.Run(@"
+ string Text = Test.txt
+.method call [System]Console.WriteLine(string<-Text)
+.method call [System]Console.ReadLine()
+.method call [System]Console.WriteLine(string<-Text)
+");
+        }
+    }
+}
+
+// ===== FILE: Program.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace test43
+{
+    internal class Program
+    {
+        static void Main(string[] args)
+        {
+         
+
+        }
+    }
+}
+
+
+// ===== FILE: Code.cs =====
+namespace testlib
+{
+    public static class Code
+    {
+        public static void Print(string message)
+        {
+            int na = 200;
+           while(na!=0)
+            {
+                na--;
+            }
+           Console.WriteLine("Done");
+        }
+    }
+}
+
+
+// ===== FILE: AssemblyInfo.cs =====
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+// General Information about an assembly is controlled through the following
+// set of attributes. Change these attribute values to modify the information
+// associated with an assembly.
+[assembly: AssemblyTitle("test43")]
+[assembly: AssemblyDescription("")]
+[assembly: AssemblyConfiguration("")]
+[assembly: AssemblyCompany("")]
+[assembly: AssemblyProduct("test43")]
+[assembly: AssemblyCopyright("Copyright ©  2024")]
+[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCulture("")]
+
+// Setting ComVisible to false makes the types in this assembly not visible
+// to COM components.  If you need to access a type in this assembly from
+// COM, set the ComVisible attribute to true on that type.
+[assembly: ComVisible(false)]
+
+// The following GUID is for the ID of the typelib if this project is exposed to COM
+[assembly: Guid("e50e2f6b-c195-486c-8c90-6faf263ebac4")]
+
+// Version information for an assembly consists of the following four values:
+//
+//      Major Version
+//      Minor Version
+//      Build Number
+//      Revision
+//
+// You can specify all the values or you can default the Build and Revision Numbers
+// by using the '*' as shown below:
+// [assembly: AssemblyVersion("1.0.*")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+
+
+// ===== FILE: .NETCoreApp,Version=v8.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+
+
+// ===== FILE: Lex.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Lex")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b963d916c8af4939baa732ba35b94b04f91fa79")]
+[assembly: System.Reflection.AssemblyProductAttribute("Lex")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Lex")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: Lex.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+
+// ===== FILE: .NETCoreApp,Version=v8.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+
+
+// ===== FILE: Lexer.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Lexer")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b963d916c8af4939baa732ba35b94b04f91fa79")]
+[assembly: System.Reflection.AssemblyProductAttribute("Lexer")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Lexer")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: Lexer.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+
+// ===== FILE: .NETCoreApp,Version=v8.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+
+
+// ===== FILE: testlib.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("testlib")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b963d916c8af4939baa732ba35b94b04f91fa79")]
+[assembly: System.Reflection.AssemblyProductAttribute("testlib")]
+[assembly: System.Reflection.AssemblyTitleAttribute("testlib")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: testlib.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+
