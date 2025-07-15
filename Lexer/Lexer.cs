@@ -2,6 +2,11 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
+// Lexer.cs implements the core interpreter loop for the custom SimpleScript
+// language. It preprocesses source code, resolves include directives,
+// executes conditional blocks and method calls, and dispatches variable
+// operations. `Lexer.Run` is the main entry point used by the CLI.
+
 namespace Lexer
 {
     public static class Lexer
@@ -233,6 +238,9 @@ namespace Lexer
         }
 
 
+        // Main entry point for executing SimpleScript source code. The method
+        // performs preprocessing, resolves includes and then interprets each
+        // line.
         public static void Run(string code, bool fromaMethodcaller = false, string Path = "")
         {
 

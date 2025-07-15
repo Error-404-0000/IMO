@@ -1,5 +1,7 @@
 ﻿using System.Data;
 
+// Convertor is a helper for casting string representations of values to their
+// strongly typed equivalents used inside the interpreter.
 namespace Lexer
 {
     public class Convertor
@@ -68,6 +70,7 @@ namespace Lexer
             return value.Contains("0x") ? Convert.ToUInt64(value, 16) : Convert.ToUInt64(value);
         }
 
+        // Convert a string representation to the requested SimpleScript type.
         public static dynamic GetType(string type, dynamic value)
         {
             if (value is string st)

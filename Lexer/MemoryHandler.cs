@@ -1,5 +1,7 @@
 ﻿namespace Lexer
 {
+    // MemoryHandler keeps track of allocated variables in SimpleScript. It can
+    // watch memory changes during execution and roll them back if needed.
     public static unsafe class MemoryHandler
     {
 
@@ -7,6 +9,9 @@
         private static readonly object obj = new();
         public static bool StopWatcher;
         private static List<string>? keys;
+        // Begin monitoring the dictionary for new entries. Any variables added
+        // while the watcher is active can later be removed via
+        // `RemoveLastChangesFromMemory`.
         public static void WatchForChanges()
         {
             StopWatcher = false;
@@ -24,6 +29,7 @@
                 }
             }).Start();
         }
+        // Stop the watcher started with `WatchForChanges`.
         public static void StopWatching()
         {
             lock (obj)
@@ -31,6 +37,8 @@
                 StopWatcher = true;
             }
         }
+        // Remove variables that were captured by the watcher since the last
+        // call to `WatchForChanges`. Throws if the watcher is still running.
         public static void RemoveLastChangesFromMemory()
         {
             if (!StopWatcher)

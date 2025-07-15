@@ -1,9 +1,16 @@
 ﻿using System.Text.RegularExpressions;
 
+// ValueHandler parses variable declarations, assignments and arithmetic
+// operations. It exposes the `Run` method which evaluates a single line of
+// SimpleScript code and updates the MemoryHandler accordingly.
+
 namespace Lexer
 {
     public static class ValueHandler
     {
+        // Evaluate a single instruction related to variables. Depending on the
+        // detected syntax this may set a value, retrieve one or perform a basic
+        // arithmetic operation.
         public static dynamic Run(string code)
         {
             Regex regex = new($@"(Add|Sub)\s+({StringHelper.AllTypes})<-\s*(\w+\d*)\s+(\w+\d*|\w*\d*|\""(.*)"")");
@@ -48,6 +55,8 @@ namespace Lexer
             return null!;
 
         }
+        // Perform a simple arithmetic operation (Add/Sub) on an existing
+        // variable. Only integers and strings are currently supported.
         private static void Operation(string code)
         {
             Regex regex = new($@"(Add|Sub)\s+({StringHelper.AllTypes})<-\s*(\w+\d*)\s+(\w+\d*|\w*\d*|\""(.*)"")");
@@ -86,6 +95,9 @@ namespace Lexer
                 ErrorHandler.Send(code, "Undefined Identifier Error.The provided code does not match the expected syntax for assignments or access operations.");
             }
         }
+        // Declare a new variable or assign a value to an existing one. Arrays
+        // and nested property access are supported through a series of regular
+        // expression checks.
         private static void SetValue(string code)
         {
             
@@ -304,6 +316,8 @@ namespace Lexer
             }
 
         }
+        // Retrieve the value of a variable. This method understands array
+        // indexing and can follow nested properties using reflection.
         private static object? GetValue(string code)
         {
             code = code.Replace("::", null);
